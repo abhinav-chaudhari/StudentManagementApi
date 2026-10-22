@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SOLUTION_PATH: C:\Users\erp\source\repos\WebApplication1\WebApplication1\WebApplication1\WebApplication1.sln
+      SOLUTION_PATH: WebApplication1.sln
 
     steps:
       - name: Check out repository
