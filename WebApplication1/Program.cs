@@ -8,6 +8,8 @@ using WebApplication1.Security;
 using WebApplication1.Services;
 using WebApplication1.Setup;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using WebApplication1.Middlerware;
+using WebApplication1.Errors;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,8 +51,11 @@ builder.Services.AddIdentityApiEndpoints<IdentityUser>(options => options.User.R
 builder.Services.AddAuthorization(options => { options.AddPolicy(AuthorizationPolicies.ManageSchoolData, policy => { policy.RequireAuthenticatedUser(); policy.RequireRole("Admin"); }); });
 builder.Services.AddOptions<ConnectionStringOptions>().Bind(builder.Configuration.GetSection(ConnectionStringOptions.SectionName)).Validate(options => !string.IsNullOrWhiteSpace(options.StudentDb), "ConnectionStrings:StudentDb is required.").ValidateOnStart();
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>(name: "database", tags: new[] { "ready" });
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 var app = builder.Build();
-
+app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseExceptionHandler();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
