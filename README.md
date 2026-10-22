@@ -85,10 +85,10 @@ POST `/api/branches` or PUT `/api/branches/{id}`
 | Parameter | Purpose | Default |
 |---|---|---|
 | search | Match part of the student's name | No filter |
-| minMarks | Minimum marks, inclusive, from 0–100 | No filter |
+| minMarks | Minimum marks, inclusive, from 0 100 | No filter |
 | branchId | Filter by a positive branch ID | No filter |
 | page | Page number, starting at 1 | 1 |
-| pageSize | Results per page, from 1–100 | 5 |
+| pageSize | Results per page, from 1 100 | 5 |
 | sortBy | id, name, or marks | id |
 | ascending | Sort direction | true |
 
@@ -133,6 +133,24 @@ The suite currently contains 39 passing test cases.
 
 Validation errors return 400. Missing resources return 404.
 Duplicate branch names and protected branch deletions return 409.
+## Health checks
+
+| Endpoint | Purpose |
+|---|---|
+| GET /health/live | Reports whether the API can respond |
+| GET /health/ready | Checks database connectivity |
+
+Healthy responses return HTTP 200.
+An unhealthy database check makes readiness return HTTP 503,
+while liveness can remain healthy.
+
+These endpoints allow anonymous access and return a simple
+status without exposing internal failure details.
+
+## Continuous integration
+
+GitHub Actions restores packages, builds the solution in Release
+mode, and runs the automated tests on pushes and pull requests.
 
 Unexpected exceptions return a generic 500 ProblemDetails
 response with a trace ID. Detailed exceptions are recorded
