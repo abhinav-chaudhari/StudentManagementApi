@@ -1,0 +1,139 @@
+# Student and Branch Management API
+
+A REST API built with ASP.NET Core 8, Entity Framework Core,
+and SQLite.
+
+## Features
+
+- Student and branch CRUD operations
+- Student branch assignment and reassignment
+- Duplicate branch-name prevention
+- Prevention of deleting branches with assigned students
+- Student search, filtering, sorting, and pagination
+- Request validation and cancellation-token forwarding
+- Centralized exception handling and structured logging
+- Unit and integration tests
+
+## Requirements
+
+- .NET 8 SDK
+- An editor such as Visual Studio 2022
+
+SQLite does not require a separate database server.
+
+## Setup
+
+From the solution folder:
+
+```powershell
+dotnet restore
+dotnet tool restore
+```
+
+From the folder containing WebApplication1.csproj:
+
+```powershell
+dotnet tool run dotnet-ef -- database update
+dotnet run
+```
+
+Open `/swagger` on the address printed by the application
+when running in the Development environment.
+
+## Endpoints
+
+| Method | Route | Purpose | Main responses |
+|---|---|---|---|
+| GET | /api/students | Search and list students | 200, 400 |
+| GET | /api/students/{id} | Get a student | 200, 404 |
+| POST | /api/students | Create a student | 201, 400 |
+| PUT | /api/students/{id} | Update a student | 204, 400, 404 |
+| DELETE | /api/students/{id} | Delete a student | 204, 404 |
+| GET | /api/branches | List branches | 200 |
+| GET | /api/branches/{id} | Get a branch | 200, 404 |
+| POST | /api/branches | Create a branch | 201, 400, 409 |
+| PUT | /api/branches/{id} | Rename a branch | 204, 400, 404, 409 |
+| DELETE | /api/branches/{id} | Delete an unused branch | 204, 404, 409 |
+
+### Create a student
+
+POST `/api/students`
+
+```json
+{
+  "name": "Ab",
+  "marks": 98,
+  "branchId": 1
+}
+```
+
+The branch must already exist. BranchId is optional.
+The database generates the student ID.
+
+### Create or rename a branch
+
+POST `/api/branches` or PUT `/api/branches/{id}`
+
+```json
+{
+  "name": "Computer Science"
+}
+```
+
+### Student query parameters
+
+| Parameter | Purpose | Default |
+|---|---|---|
+| search | Match part of the student's name | No filter |
+| minMarks | Minimum marks, inclusive, from 0–100 | No filter |
+| branchId | Filter by a positive branch ID | No filter |
+| page | Page number, starting at 1 | 1 |
+| pageSize | Results per page, from 1–100 | 5 |
+| sortBy | id, name, or marks | id |
+| ascending | Sort direction | true |
+
+Example:
+
+```text
+/api/students?search=ab&minMarks=40&page=1&pageSize=5&sortBy=marks&ascending=false
+```
+
+Paginated responses include the current page's items,
+the total matching count, and pagination metadata.
+
+### Branch rules
+
+Branch names are trimmed before saving. ASCII case differences
+do not allow duplicate names.
+
+A branch with assigned students cannot be deleted.
+Reassign those students or explicitly remove their branch
+assignments first.
+
+For student PUT requests, an omitted or null BranchId removes
+the existing branch assignment.
+
+## Tests
+
+From the solution folder:
+
+```powershell
+dotnet test
+```
+
+Unit tests use fake services to verify controller behavior.
+
+Integration tests send HTTP requests through the application
+pipeline and use a temporary SQLite database in memory.
+They do not use the application's students.db file.
+
+The suite currently contains 39 passing test cases.
+
+## Error handling
+
+Validation errors return 400. Missing resources return 404.
+Duplicate branch names and protected branch deletions return 409.
+
+Unexpected exceptions return a generic 500 ProblemDetails
+response with a trace ID. Detailed exceptions are recorded
+in application logs.
