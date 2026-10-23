@@ -10,6 +10,7 @@ namespace WebApplication1.Tests
 {
     public class StudentsControllerTests
     {
+        private static readonly Guid DummyVersion = Guid.Parse("17171717-1717-1717-1717-171717171717");
         [Fact]
         public async Task GetById_WhenStudentDoesNotExist_ReturnsNotFound()
         {
@@ -36,8 +37,7 @@ namespace WebApplication1.Tests
         {
             var service = new FakeStudentService();
             var controller = new StudentsController(service);
-
-            var response = await controller.Update(999, new UpdateStudentRequest { Name = "Ab", Marks = 99 });
+            var response = await controller.Update(999, new UpdateStudentRequest { Name = "Ab", Marks = 99, Version = DummyVersion });
             Assert.IsType<NotFoundResult>(response);
         }
         [Fact]
@@ -58,7 +58,7 @@ namespace WebApplication1.Tests
             Assert.Equal(201, created.StatusCode);
             Assert.Equal(nameof(StudentsController.GetById), created.ActionName);
             Assert.Equal(104, Assert.IsType<int>(created.RouteValues!["id"]));
-            Assert.Equal(new Student(104, "Claire", 85, 1, "Computer Science"), student);
+            Assert.Equal(new Student(104, "Claire", 85, 1, "Computer Science", student.Version), student);
         }
         [Fact]
         public async Task GetAllAsync_WithInvalidPage_ReturnsBadRequest()
@@ -92,7 +92,7 @@ namespace WebApplication1.Tests
             public Task<Student?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
             {
                 ReceivedToken = cancellationToken;
-                Student? student = id == 101 ? new Student(101, "Ab", 95, 1, "Computer Science") : null;
+                Student? student = id == 101 ? new Student(101, "Ab", 95, 1, "Computer Science", DummyVersion) : null;
                 return Task.FromResult<Student?>(student);
             }
             public Task<PagedResult<Student>> GetAllAsync(StudentQueryRequest request, CancellationToken cancellationToken = default)
@@ -100,16 +100,16 @@ namespace WebApplication1.Tests
                 ReceivedToken = cancellationToken;
                 ReceivedMinMarks = request.MinMarks;
                 ReceivedBranchId = request.Branchid;
-                List<Student> items = [new(101, "Ab", 98, 1, "Computer Science")];
+                List<Student> items = [new(101, "Ab", 98, 1, "Computer Science", DummyVersion)];
                 return Task.FromResult(new PagedResult<Student>(items, 1, request.page, request.pageSize));
             }
             public Task<Student> CreateAsync(string name, int marks, int? branchId, CancellationToken cancellationToken = default)
             {
-                return Task.FromResult(new Student(104, name, marks, 1, "Computer Science"));
+                return Task.FromResult(new Student(104, name, marks, 1, "Computer Science", DummyVersion));
             }
-            public Task<bool> UpdateAsync(int id, string name, int marks, int? branchId, CancellationToken cancellationToken = default)
+            public Task<StudentUpdateResult> UpdateAsync(int id, string name, int marks, int? branchId, Guid Version, CancellationToken cancellationToken = default)
             {
-                return Task.FromResult(false);
+                return Task.FromResult(StudentUpdateResult.NotFound);
             }
             public Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
             {

@@ -12,5 +12,7 @@ namespace WebApplication1.DTOs
         public int? Marks { get; set; }
         [Range(1,int.MaxValue)]
         public int? Branchid { get; set; }
+        [Required]
+        public Guid? Version { get; set; }
     }
 }
