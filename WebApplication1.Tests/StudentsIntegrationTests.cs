@@ -67,7 +67,7 @@ namespace WebApplication1.Tests
             var created = await response.Content.ReadFromJsonAsync<Student>();
             Assert.NotNull(created);
 
-            using var updateResponse = await client.PutAsJsonAsync($"api/students/{created.Id}", new { name = "Claire", marks = 98, branchId = created.branchId ,  version=created.Version});
+            using var updateResponse = await client.PutAsJsonAsync($"api/students/{created.Id}", new { name = "Claire", marks = 98, branchId = created.branchId, version = created.Version });
             Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
             using var getResponse = await client.GetAsync($"/api/students/{created.Id}");
@@ -156,7 +156,7 @@ namespace WebApplication1.Tests
             Assert.NotNull(student);
             Assert.Equal(first.Id, student.branchId);
 
-            using var updateResponse = await client.PutAsJsonAsync($"/api/students/{student.Id}", new { name = "Claire", marks = 95, branchId = second.Id,version=student.Version });
+            using var updateResponse = await client.PutAsJsonAsync($"/api/students/{student.Id}", new { name = "Claire", marks = 95, branchId = second.Id, version = student.Version });
             Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
             using var getResponse = await client.GetAsync($"/api/students/{student.Id}");
@@ -609,7 +609,7 @@ namespace WebApplication1.Tests
             using var client = failingFactory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false });
 
             using var readyResponse = await client.GetAsync("/health/ready");
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, readyResponse.StatusCode);  
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, readyResponse.StatusCode);
 
             var readyBody = await readyResponse.Content.ReadAsStringAsync();
             Assert.Equal("Unhealthy", readyBody);
@@ -626,7 +626,7 @@ namespace WebApplication1.Tests
             using var factory = new StudentApiFactory();
             using var client = factory.CreateStudentClient();
 
-            for (int i=0; i<10; i++)
+            for (int i = 0; i < 10; i++)
             {
                 using var response = await client.GetAsync("/api/students");
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -664,7 +664,41 @@ namespace WebApplication1.Tests
             var fetched = await response.Content.ReadFromJsonAsync<Student>();
             Assert.NotNull(fetched);
             Assert.Equal(90, fetched.Marks);
-            Assert.NotEqual(original.Version,fetched.Version);
+            Assert.NotEqual(original.Version, fetched.Version);
+            using var retryResponse = await client.PutAsJsonAsync($"/api/students/{original.Id}", new { name = "Claire", marks = 80, branchId = fetched.branchId, version = fetched.Version });
+            Assert.Equal(HttpStatusCode.NoContent, retryResponse.StatusCode);
+
+            using var finalResponse = await client.GetAsync($"/api/students/{original.Id}");
+
+            Assert.Equal(HttpStatusCode.OK, finalResponse.StatusCode);
+
+            var finalStudent = await finalResponse.Content.ReadFromJsonAsync<Student>();
+
+            Assert.NotNull(finalStudent);
+            Assert.Equal(80, finalStudent.Marks);
+            Assert.NotEqual(fetched.Version, finalStudent.Version);
+        }
+        [Fact]
+        public async Task Update_WithoutVersion_ReturnsValidationError()
+        {
+            using var factory = new StudentApiFactory();
+            using var client = factory.CreateStudentClient();
+
+            await TestAuthentication.RegisterAndLoginAsync(client, factory, asAdmin: true);
+
+            using var createResponse = await client.PostAsJsonAsync("/api/students", new { name = "Claire", marks = 75 });
+            Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+            var created = await createResponse.Content.ReadFromJsonAsync<Student>();
+            Assert.NotNull(created);
+
+            using var response = await client.PutAsJsonAsync($"/api/students/{created.Id}", new { name = "Claire", marks = 90 });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+
+            Assert.NotNull(problem);
+            Assert.Contains("Version", problem.Errors.Keys);
         }
     }
 }
