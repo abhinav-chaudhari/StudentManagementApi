@@ -10,6 +10,8 @@ using WebApplication1.Setup;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WebApplication1.Middlerware;
 using WebApplication1.Errors;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +55,7 @@ builder.Services.AddOptions<ConnectionStringOptions>().Bind(builder.Configuratio
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>(name: "database", tags: new[] { "ready" });
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = StatusCodes.Status429TooManyRequests; options.AddPolicy<String>(RateLimitPolicies.StudentRead, context => { string clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown"; return RateLimitPartition.GetFixedWindowLimiter(partitionKey: clientIp, factory: _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }); }); });
 var app = builder.Build();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseExceptionHandler();
@@ -70,7 +73,7 @@ if(app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("AdminBoo
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseRateLimiter();
 app.MapControllers();
 app.MapGroup("api/auth").MapIdentityApi<IdentityUser>();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();

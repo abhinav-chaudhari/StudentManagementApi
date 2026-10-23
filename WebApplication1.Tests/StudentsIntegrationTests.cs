@@ -619,6 +619,24 @@ namespace WebApplication1.Tests
             Assert.Equal(HttpStatusCode.OK, liveResponse.StatusCode);
             Assert.Equal("Healthy", await liveResponse.Content.ReadAsStringAsync());
         }
+        [Fact]
+        public async Task GetAll_WhenRateLimitExceeded_ReturnsTooManyRequests()
+        {
+            using var factory = new StudentApiFactory();
+            using var client = factory.CreateStudentClient();
+
+            for (int i=0; i<10; i++)
+            {
+                using var response = await client.GetAsync("/api/students");
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+            using var rejected = await client.GetAsync("/api/students");
+
+            Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+
+            using var health = await client.GetAsync("/health/ready");
+            Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        }
     }
 }
 

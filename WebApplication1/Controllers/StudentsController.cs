@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WebApplication1.DTOs;
 using WebApplication1.Models;
 using WebApplication1.Security;
@@ -18,6 +19,7 @@ namespace WebApplication1.Controllers
             this.studentService = studentService;
         }
         [HttpGet]
+        [EnableRateLimiting(RateLimitPolicies.StudentRead)]
         public async Task<ActionResult<PagedResult<Student>>> GetAllAsync([FromQuery] StudentQueryRequest request,CancellationToken cancellationToken = default)
         {
             var student = await studentService.GetAllAsync(request);
