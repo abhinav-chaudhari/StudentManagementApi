@@ -18,6 +18,7 @@ namespace WebApplication1.Data
             modelBuilder.Entity<StudentEntity>().HasOne(s => s.Branch).WithMany(b => b.Students).HasForeignKey(s => s.BranchId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<BranchEntity>().Property(b => b.Name).HasMaxLength(100).IsRequired().UseCollation("NOCASE");
             modelBuilder.Entity<BranchEntity>().HasIndex(b => b.Name).IsUnique();
+            modelBuilder.Entity<StudentEntity>().Property(s => s.Version).IsConcurrencyToken();
         }
     }
 }

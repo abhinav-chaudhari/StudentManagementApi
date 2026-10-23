@@ -7,5 +7,6 @@
         public int Marks { get; set; }
         public int? BranchId { get; set; }
         public BranchEntity? Branch { get; set; }
+        public Guid Version { get; set; } = Guid.NewGuid();
     }
 }

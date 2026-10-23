@@ -6,6 +6,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NuGet.Frameworks;
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using WebApplication1.Controllers;
 using WebApplication1.DTOs;
 using WebApplication1.Models;
@@ -66,7 +67,7 @@ namespace WebApplication1.Tests
             var created = await response.Content.ReadFromJsonAsync<Student>();
             Assert.NotNull(created);
 
-            using var updateResponse = await client.PutAsJsonAsync($"api/students/{created.Id}", new { name = "Claire", marks = 98 });
+            using var updateResponse = await client.PutAsJsonAsync($"api/students/{created.Id}", new { name = "Claire", marks = 98, branchId = created.branchId ,  version=created.Version});
             Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
             using var getResponse = await client.GetAsync($"/api/students/{created.Id}");
@@ -89,7 +90,7 @@ namespace WebApplication1.Tests
             var okResult = Assert.IsType<OkObjectResult>(response.Result);
             var student = Assert.IsType<Student>(okResult.Value);
 
-            Assert.Equal(new Student(101, "Ab", 95, student.branchId, student.branchName), student);
+            Assert.Equal(new Student(101, "Ab", 95, student.branchId, student.branchName, student.Version), student);
         }
         [Fact]
         public async Task Create_WithMissingBranch_ReturnsBadRequest()
@@ -155,7 +156,7 @@ namespace WebApplication1.Tests
             Assert.NotNull(student);
             Assert.Equal(first.Id, student.branchId);
 
-            using var updateResponse = await client.PutAsJsonAsync($"/api/students/{student.Id}", new { name = "Claire", marks = 95, branchId = second.Id });
+            using var updateResponse = await client.PutAsJsonAsync($"/api/students/{student.Id}", new { name = "Claire", marks = 95, branchId = second.Id,version=student.Version });
             Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
             using var getResponse = await client.GetAsync($"/api/students/{student.Id}");
@@ -185,7 +186,7 @@ namespace WebApplication1.Tests
             Assert.Equal(1, result.TotalCount);
 
             var student = Assert.Single(result.items);
-            Assert.Equal(new Student(101, "Ab", 98, 1, "Computer Science"), student);
+            Assert.Equal(new Student(101, "Ab", 98, 1, "Computer Science", student.Version), student);
         }
         [Fact]
         public async Task GetAll_WithBranchAndMinimumMarks_ReturnsOnlyMatchingStudents()
@@ -636,6 +637,34 @@ namespace WebApplication1.Tests
 
             using var health = await client.GetAsync("/health/ready");
             Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        }
+        [Fact]
+        public async Task Update_WithStaleVersion_ReturnsConflictAndPreservesFirstUpdate()
+        {
+            using var factory = new StudentApiFactory();
+            using var client = factory.CreateStudentClient();
+
+            await TestAuthentication.RegisterAndLoginAsync(client, factory, asAdmin: true);
+
+            using var createResponse = await client.PostAsJsonAsync("/api/students", new { name = "Claire", marks = 75 });
+            Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+            var original = await createResponse.Content.ReadFromJsonAsync<Student>();
+            Assert.NotNull(original);
+
+            using var firstUpdate = await client.PutAsJsonAsync($"/api/students/{original.Id}", new { name = "Claire", marks = 90, version = original.Version });
+            Assert.Equal(HttpStatusCode.NoContent, firstUpdate.StatusCode);
+
+            using var staleUpdate = await client.PutAsJsonAsync($"/api/students/{original.Id}", new { name = "Claire", marks = 80, version = original.Version });
+            Assert.Equal(HttpStatusCode.Conflict, staleUpdate.StatusCode);
+
+            using var response = await client.GetAsync($"/api/students/{original.Id}");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var fetched = await response.Content.ReadFromJsonAsync<Student>();
+            Assert.NotNull(fetched);
+            Assert.Equal(90, fetched.Marks);
+            Assert.NotEqual(original.Version,fetched.Version);
         }
     }
 }

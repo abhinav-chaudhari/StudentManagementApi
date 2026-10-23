@@ -43,14 +43,14 @@ namespace WebApplication1.Services
                 ("id", false) => query.OrderByDescending(s => s.Id),
                 _ => throw new ArgumentException("Unsupported sort field.", nameof(sortBy))
             };
-            var items = await orderedQuery.Skip(skip).Take(pageSize).Select(s => new Student(s.Id, s.Name, s.Marks,s.BranchId,s.Branch==null?null:s.Branch.Name)).ToListAsync(cancellationToken);
+            var items = await orderedQuery.Skip(skip).Take(pageSize).Select(s => new Student(s.Id, s.Name, s.Marks,s.BranchId,s.Branch==null?null:s.Branch.Name,s.Version)).ToListAsync(cancellationToken);
             return new PagedResult<Student>(items, totalCount, page, pageSize);
         }
         public async Task<Student?> GetByIdAsync(int Id,CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var entity = await db.Students.AsNoTracking().Where(s=> s.Id==Id).Select(s=>new Student(s.Id,s.Name,s.Marks,s.BranchId,s.Branch==null?null:s.Branch.Name)).FirstOrDefaultAsync(cancellationToken);
-            return entity == null ? null : new Student(entity.Id,entity.Name,entity.Marks,entity.branchId,entity.branchName);
+            var entity = await db.Students.AsNoTracking().Where(s=> s.Id==Id).Select(s=>new Student(s.Id,s.Name,s.Marks,s.BranchId,s.Branch==null?null:s.Branch.Name,s.Version)).FirstOrDefaultAsync(cancellationToken);
+            return entity == null ? null : new Student(entity.Id,entity.Name,entity.Marks,entity.branchId,entity.branchName,entity.Version);
         }
         public async Task<Student> CreateAsync(string Name, int Marks, int? branchId,CancellationToken cancellationToken = default)
         {
@@ -66,22 +66,34 @@ namespace WebApplication1.Services
             await db.SaveChangesAsync(cancellationToken);
             return  (await GetByIdAsync(entity.Id, cancellationToken))!;
         }
-        public async Task<bool> UpdateAsync(int id, string name, int marks, int? branchId,CancellationToken cancellationToken = default)
+        public async Task<StudentUpdateResult> UpdateAsync(int id, string name, int marks, int? branchId,Guid Version,CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var entity = await db.Students.FirstOrDefaultAsync(s => s.Id == id,cancellationToken);
             if (entity == null)
-                return false;
+                return StudentUpdateResult.NotFound;
+            if (entity.Version != Version)
+                return StudentUpdateResult.Conflict;
             if (branchId.HasValue)
             {
                 bool exists = await db.Branches.AnyAsync(b => b.Id == branchId, cancellationToken);
                 if (!exists) throw new ArgumentException($"Branch does not exist.", nameof(branchId));
             }
+            db.Entry(entity).Property(e => e.Version).OriginalValue = Version;
             entity.Name = name;
             entity.Marks = marks;
             entity.BranchId = branchId;
-            await db.SaveChangesAsync(cancellationToken);
-            return true;
+            entity.Version = Guid.NewGuid();
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                return StudentUpdateResult.Success;
+            }
+            catch
+            {
+                db.Entry(entity).State = EntityState.Detached;
+                return StudentUpdateResult.Conflict;
+            }
         }
         public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {

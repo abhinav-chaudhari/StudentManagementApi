@@ -52,10 +52,14 @@ namespace WebApplication1.Controllers
         {
             try
             {
-                bool Updated = await studentService.UpdateAsync(Id, request.Name.Trim(), request.Marks.Value, request.Branchid, cancellationToken);
-                if (!Updated)
-                    return NotFound();
-                return NoContent();
+                var result = await studentService.UpdateAsync(Id, request.Name.Trim(), request.Marks!.Value, request.Branchid, request.Version!.Value,cancellationToken);
+                return result switch
+                {
+                    StudentUpdateResult.Success => NoContent(),
+                    StudentUpdateResult.NotFound => NotFound(),
+                    StudentUpdateResult.Conflict => Conflict("Student has changed Reload it before updating."),
+                    _=> throw new InvalidOperationException("Unexpected update result.")
+                };
             }catch(ArgumentException ex) when (ex.ParamName == "branchId")
             {
                 return BadRequest("selected branch does not exist.");
