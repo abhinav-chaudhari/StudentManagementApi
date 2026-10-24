@@ -152,6 +152,51 @@ status without exposing internal failure details.
 GitHub Actions restores packages, builds the solution in Release
 mode, and runs the automated tests on pushes and pull requests.
 
+## Local deployment rehearsal
+
+Publish the API from the repository root:
+
+```powershell
+dotnet publish WebApplication1/WebApplication1.csproj --configuration Release --output artifacts/publish
+```
+
+Create a separate deployment database:
+
+```powershell
+cd WebApplication1
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update --connection "Data Source=../artifacts/deployment.db"
+cd ..
+```
+
+Run the published API using PowerShell:
+
+```powershell
+cd artifacts/publish
+$env:ASPNETCORE_ENVIRONMENT = "Production"
+$env:ASPNETCORE_URLS = "http://localhost:5080"
+$env:ConnectionStrings__StudentDb = "Data Source=../deployment.db"
+dotnet WebApplication1.dll
+```
+
+Keep this terminal open. In another terminal, verify:
+
+```powershell
+curl.exe -i http://localhost:5080/health/live
+curl.exe -i http://localhost:5080/health/ready
+curl.exe -i http://localhost:5080/api/students
+```
+
+All three endpoints should return HTTP 200.
+Both health endpoints should return `Healthy`.
+
+Swagger and the development Admin bootstrapper are disabled
+in Production. This rehearsal uses local HTTP; hosted deployment
+requires HTTPS configuration.
+
+Stop the API with Ctrl+C and close its terminal to discard
+the session's environment-variable overrides.
+
 Unexpected exceptions return a generic 500 ProblemDetails
 response with a trace ID. Detailed exceptions are recorded
 in application logs.
