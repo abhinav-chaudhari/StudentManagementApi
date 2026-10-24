@@ -40,3 +40,87 @@ jobs:
           --logger trx
           --blame-hang
           --blame-hang-timeout 2m
+
+	- name: Publish API
+        run: >
+          dotnet publish WebApplication1/WebApplication1.csproj
+          --configuration Release
+          --no-build
+          --output artifacts/publish
+
+      - name: Install migration tool
+        run: >
+          dotnet tool install dotnet-ef
+          --version 8.0.31
+          --tool-path "$RUNNER_TEMP/ef-tools"
+
+      - name: Create smoke test database
+        working-directory: WebApplication1
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          DOTNET_ENVIRONMENT: Production
+        run: |
+          "$RUNNER_TEMP/ef-tools/dotnet-ef" database update \
+            --configuration Release \
+            --no-build \
+            --connection "Data Source=$GITHUB_WORKSPACE/artifacts/smoke.db"
+
+      - name: Smoke test published API
+        timeout-minutes: 3
+        working-directory: artifacts/publish
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          DOTNET_ENVIRONMENT: Production
+          ASPNETCORE_URLS: http://127.0.0.1:5080
+          ConnectionStrings__StudentDb: Data Source=${{ github.workspace }}/artifacts/smoke.db
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dotnet WebApplication1.dll > api.log 2>&1 &
+          api_pid=$!
+
+          cleanup() {
+            kill "$api_pid" 2>/dev/null || true
+            wait "$api_pid" 2>/dev/null || true
+            cat api.log
+          }
+
+          trap cleanup EXIT
+
+          ready=false
+
+          for attempt in {1..30}; do
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              echo "API exited before becoming ready."
+              exit 1
+            fi
+
+            if curl --fail --silent --max-time 2 \
+              http://127.0.0.1:5080/health/ready > /dev/null; then
+              ready=true
+              break
+            fi
+
+            sleep 1
+          done
+
+          if [ "$ready" != "true" ]; then
+            echo "API did not become ready."
+            exit 1
+          fi
+
+          for endpoint in health/live health/ready api/students; do
+            status=$(curl --silent --show-error --max-time 5 \
+              --output response.txt \
+              --write-out "%{http_code}" \
+              "http://127.0.0.1:5080/$endpoint")
+
+            if [ "$status" != "200" ]; then
+              echo "$endpoint returned HTTP $status"
+              cat response.txt
+              exit 1
+            fi
+
+            echo "$endpoint returned HTTP 200"
+          done
