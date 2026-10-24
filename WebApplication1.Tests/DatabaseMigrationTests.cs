@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using WebApplication1.Models;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace WebApplication1.Tests
 {
@@ -65,6 +67,58 @@ namespace WebApplication1.Tests
             Assert.Equal("Computer Science", saved.Branch.Name);
             Assert.NotEqual(Guid.Empty, saved.Version);
             Assert.Equal(version, saved.Version);
+        }
+        [Fact]
+        public async Task RepairVersionMigration_PreservesExistingStudent()
+        {
+            await using var connection = new SqliteConnection("Data Source=:memory:");
+
+            await connection.OpenAsync();
+
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options;
+
+            await using (var db = new AppDbContext(options))
+            {
+                var migrations = db.Database.GetMigrations().ToList();
+
+                int repairIndex = migrations.FindIndex(name => name.EndsWith("_AddStudentVersion"));
+
+                Assert.True(repairIndex > 0, "Expected the repair migration and a preceding migration.");
+
+                string previousMigration = migrations[repairIndex - 1];
+
+                var migrator = db.GetService<IMigrator>();
+                await migrator.MigrateAsync(previousMigration);
+
+                await db.Database.ExecuteSqlRawAsync("""insert into "Students" ("Id","Name","Marks","BranchId") values(101,'Claire',75,null);""");
+
+                await db.Database.MigrateAsync();
+                Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+            }
+
+            await using (var verification = new AppDbContext(options))
+            {
+                var student = await verification.Students.SingleAsync(s => s.Id == 101);
+
+                Assert.Equal("Claire", student.Name);
+                Assert.Equal(75, student.Marks);
+                Assert.Null(student.BranchId);
+
+                Assert.Equal(Guid.Empty, student.Version);
+
+                student.Marks = 90;
+                student.Version = Guid.NewGuid();
+
+                await verification.SaveChangesAsync();
+            }
+            await using var finalContext = new AppDbContext(options);
+
+            var saved = await finalContext.Students.AsNoTracking().SingleAsync(s => s.Id == 101);
+
+            Assert.Equal("Claire", saved.Name);
+            Assert.Equal(90, saved.Marks);
+            Assert.NotEqual(Guid.Empty, saved.Version);
+            Assert.Equal(1, await finalContext.Students.CountAsync());
         }
     }
 }
