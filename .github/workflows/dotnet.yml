@@ -124,3 +124,16 @@ jobs:
 
             echo "$endpoint returned HTTP 200"
           done
+      - name: Upload tested API package
+        uses: actions/upload-artifact@v7
+        with:
+          name: student-api-linux-${{ github.sha }}
+          path: |
+            artifacts/publish/
+            !artifacts/publish/**/*.log
+            !artifacts/publish/**/response.txt
+            !artifacts/publish/**/*.db
+            !artifacts/publish/**/*.db-shm
+            !artifacts/publish/**/*.db-wal
+          if-no-files-found: error
+          retention-days: 7
