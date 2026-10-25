@@ -41,7 +41,7 @@ jobs:
           --blame-hang
           --blame-hang-timeout 2m
 
-	- name: Publish API
+      - name: Publish API
         run: >
           dotnet publish WebApplication1/WebApplication1.csproj
           --configuration Release
