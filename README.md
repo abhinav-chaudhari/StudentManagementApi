@@ -200,3 +200,53 @@ the session's environment-variable overrides.
 Unexpected exceptions return a generic 500 ProblemDetails
 response with a trace ID. Detailed exceptions are recorded
 in application logs.
+## Hosted demonstration
+
+Base URL: https://abhinav-chaudhari.runasp.net
+
+This practice API is hosted on MonsterASP.NET using Windows/IIS
+with HTTPS. It uses SQLite for database storage.
+
+### Public endpoints
+
+- GET /health/live — application liveness
+- GET /health/ready — database connectivity
+- GET /api/students — paginated student list
+
+Student and branch write operations require an authenticated Admin.
+
+### Authentication
+
+POST /api/auth/login?useCookies=false accepts an email and password
+as JSON. Use the returned accessToken as a Bearer token.
+
+The application uses ASP.NET Core Identity's built-in bearer tokens,
+not JWTs. Public registration does not assign the Admin role.
+
+### Deployment storage
+
+- /wwwroot — published application
+- /private/data — SQLite database
+- /private/keys — Data Protection keys
+
+Preserve the private folders during application deployments.
+Never commit database files, authentication keys, passwords,
+access tokens, or deployment credentials.
+
+### Verification
+
+The hosted deployment was checked for:
+
+- Successful HTTPS health responses.
+- Admin login and authorized student creation.
+- Student data surviving an application-pool restart.
+- An existing unexpired access token working after restart.
+
+CI runs 53 automated tests, verifies the published application
+through HTTP smoke checks, and uploads the tested publish output.
+
+### Limitations
+
+This is a practice deployment using a free hosting plan.
+Docker remains postponed. Load testing and a tested backup-and-restore
+procedure remain future improvements.
