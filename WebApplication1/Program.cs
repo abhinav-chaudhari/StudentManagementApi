@@ -95,7 +95,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-if(app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("AdminBootstrap:Enabled"))
+bool developmentBootstrap = app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("AdminBootstrap:Enabled");
+bool hostedProvisioning = app.Environment.IsProduction() && app.Configuration.GetValue<bool>("AdminProvisioning:Enabled");
+
+if (developmentBootstrap || hostedProvisioning)
 {
     await AdminBootstrapper.RunAsync(app.Services, app.Configuration);
 }
